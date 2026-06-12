@@ -1,0 +1,49 @@
+# ━━━ 依赖 ━━━
+node_modules/
+
+# ━━━ 构建产物 ━━━
+dist/
+build/
+.vite/
+
+# ━━━ 环境变量 ━━━
+.env
+.env.local
+.env.*.local
+
+# ━━━ 日志 ━━━
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ━━━ 编辑器 & IDE ━━━
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ━━━ 操作系统文件 ━━━
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ━━━ 测试 & 覆盖率 ━━━
+coverage/
+*.lcov
+.nyc_output/
+
+# ━━━ 临时文件 ━━━
+*.tmp
+*.temp
+.cache/
+*.bak
+
+# ━━━ 打包相关 ━━━
+*.tgz
+
+.vercel
