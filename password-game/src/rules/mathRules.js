@@ -170,7 +170,7 @@ export const mathTemplates = [
     }
   },
   {
-    id: 'math_last_digit',
+    id: 'math_last',
     category: '数学',
     difficulty: 1,
     description: '密码中最后一个数字必须是 {d}',
@@ -182,7 +182,7 @@ export const mathTemplates = [
     }
   },
   {
-    id: 'math_first_digit',
+    id: 'math_first',
     category: '数学',
     difficulty: 1,
     description: '密码中第一个数字必须是 {d}',

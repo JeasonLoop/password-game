@@ -41,7 +41,7 @@ export const stringTemplates = [
     validate: (pwd, { word }) => pwd.toLowerCase().includes(word)
   },
   {
-    id: 'str_exact_length',
+    id: 'str_exact',
     category: '字符串',
     difficulty: 1,
     description: '密码的长度必须恰好为 {n} 个字符',

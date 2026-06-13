@@ -6,7 +6,10 @@
  */
 export function generateAllRules(templates) {
   const allRules = [];
+  // 构建已知模板名集合（用于 parseRuleId 消歧）
+  if (!_knownTemplates) _knownTemplates = new Set();
   for (const template of templates) {
+    _knownTemplates.add(template.id);
     const paramCombos = enumerateParams(template.params);
     for (const combo of paramCombos) {
       allRules.push(instantiateRule(template, combo));
@@ -56,6 +59,7 @@ function instantiateRule(template, params) {
     difficulty: template.difficulty,
     description: desc,
     hint,
+    _templateName: template.id,  // 直接存储模板名，避免 ID 解析歧义
     validate: (password) => template.validate(password, params),
   };
 }
@@ -73,28 +77,53 @@ function shuffle(arr) {
 /**
  * 解析规则 ID 中的数字参数
  * 例如 "math_digit_count_20" → { template: "math_digit_count", nums: [20] }
- * 例如 "str_exact_length_12" → { template: "str_exact", nums: [12] }
+ * 例如 "str_exact_12" → { template: "str_exact", nums: [12] }
  * 例如 "str_must_contain_char_a" → { template: "str_must_contain_char", nums: [], strParam: "a" }
  */
 function parseRuleId(id) {
   const parts = id.split('_');
+
+  // 当已知模板集合可用时，使用最长匹配策略消歧
+  if (_knownTemplates && _knownTemplates.size > 0) {
+    // 从最长模板名开始尝试（splitIdx 从大到小）
+    for (let splitIdx = parts.length; splitIdx >= 1; splitIdx--) {
+      const template = parts.slice(0, splitIdx).join('_');
+      if (_knownTemplates.has(template)) {
+        const paramParts = parts.slice(splitIdx);
+        const nums = [];
+        let strParam = null;
+        // 从参数部分提取：末尾连续数字 → nums，紧邻的非数字 → strParam
+        let pi = paramParts.length;
+        while (pi > 0 && /^-?\d+$/.test(paramParts[pi - 1])) {
+          nums.unshift(parseInt(paramParts[pi - 1]));
+          pi--;
+        }
+        if (pi > 0 && !/^-?\d+$/.test(paramParts[pi - 1])) {
+          strParam = paramParts.slice(0, pi).join('_');
+        }
+        return { template, nums, strParam };
+      }
+    }
+  }
+
+  // 回退：传统解析（无已知模板集合时）
   const nums = [];
   let strParam = null;
   let splitIdx = parts.length;
-
-  // 从末尾往前扫描：先取字符串参数，再取连续数字参数
-  if (splitIdx > 0 && !/^-?\d+$/.test(parts[splitIdx - 1])) {
-    strParam = parts[splitIdx - 1];
-    splitIdx--;
-  }
   while (splitIdx > 0 && /^-?\d+$/.test(parts[splitIdx - 1])) {
     nums.unshift(parseInt(parts[splitIdx - 1]));
     splitIdx--;
   }
-
+  if (splitIdx > 0 && !/^-?\d+$/.test(parts[splitIdx - 1])) {
+    strParam = parts[splitIdx - 1];
+    splitIdx--;
+  }
   const template = parts.slice(0, splitIdx).join('_');
   return { template, nums, strParam };
 }
+
+/** 已知模板名集合（由 selectRulesForGame 在首次调用时构建） */
+let _knownTemplates = null;
 
 // ════════════════════════════════════════════════════════════
 // 互斥模板列表：同模板不同参数 → 互斥（同一局最多出现一条）
@@ -104,13 +133,13 @@ const exclusiveTemplates = [
   // ── 位置类（开头/结尾/长度只能有一个约束）──
   'str_starts_with',          // 密码以 "X" 开头
   'str_ends_with',            // 密码以 "X" 结尾
-  'str_exact',                // 密码长度恰好为 N（原 str_exact_length）
-  'final_starts_with',        // 密码以 "XY" 开头（原 final_starts_with_two）
-  'final_ends_with',          // 密码以 "XY" 结尾（原 final_ends_with_two）
-  'mega_starts_with',         // 密码以字符 "X" 开头（原 mega_starts_with_char）
-  'mega_ends_with',           // 密码以字符 "X" 结尾（原 mega_ends_with_char）
-  'math_first',               // 第一个数字是 D（原 math_first_digit）
-  'math_last',                // 最后一个数字是 D（原 math_last_digit）
+  'str_exact',                // 密码长度恰好为 N
+  'final_starts_with',        // 密码以 "XY" 开头
+  'final_ends_with',          // 密码以 "XY" 结尾
+  'mega_starts_with_char',    // 密码以字符 "X" 开头
+  'mega_ends_with_char',      // 密码以字符 "X" 结尾
+  'math_first',               // 第一个数字是 D
+  'math_last',                // 最后一个数字是 D
 
   // ── 计数类（恰好 N 个 X，不同 N 互斥）──
   'str_vowel_count',          // 恰好 N 个元音
@@ -183,29 +212,26 @@ function getEndSuffix(id) {
  * 检测两条规则是否互斥
  */
 function areConflicting(ruleA, ruleB) {
-  const a = parseRuleId(ruleA.id);
-  const b = parseRuleId(ruleB.id);
-  const ta = a.template;
-  const tb = b.template;
+  // 优先使用直接存储的模板名，避免 ID 解析歧义
+  const ta = ruleA._templateName || parseRuleId(ruleA.id).template;
+  const tb = ruleB._templateName || parseRuleId(ruleB.id).template;
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // ① 同模板不同参数 → 互斥
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (ta === tb && exclusiveTemplates.includes(ta)) {
-    const aHasNum = a.nums.length > 0, bHasNum = b.nums.length > 0;
-    const aHasStr = !!a.strParam, bHasStr = !!b.strParam;
-    if (aHasNum && bHasNum && a.nums.some((n, i) => n !== b.nums[i])) return true;
-    if (aHasStr && bHasStr && a.strParam !== b.strParam) return true;
-    if (aHasNum !== bHasNum) return true;
-    if (aHasStr !== bHasStr) return true;
-    return false; // 参数完全相同 → 同一条规则，不算冲突
+    return true; // 同 exclusive 模板的任何两条规则都互斥
   }
+
+  // 以下解析仅用于跨模板冲突检测
+  const a = parseRuleId(ruleA.id);
+  const b = parseRuleId(ruleB.id);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // ② 跨模板：开头规则之间
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  const startTemplates = ['str_starts_with', 'final_starts_with', 'mega_starts_with'];
-  const endTemplates = ['str_ends_with', 'final_ends_with', 'mega_ends_with'];
+  const startTemplates = ['str_starts_with', 'final_starts_with', 'mega_starts_with_char'];
+  const endTemplates = ['str_ends_with', 'final_ends_with', 'mega_ends_with_char'];
 
   // 开头规则互斥：不同前缀/开头字符
   if (startTemplates.includes(ta) && startTemplates.includes(tb) && ta !== tb) {
@@ -855,40 +881,32 @@ export function selectRulesForGame(rulePool, difficulty) {
  * @param {Array} [existing] - 已有的规则（新规则不能与之冲突）
  */
 function pickNonConflicting(pool, count, existing = []) {
-  const shuffled = shuffle(pool);
-  const selected = [];
   const allExisting = [...existing];
+  let bestSelected = [];
 
-  for (const candidate of shuffled) {
-    if (selected.length >= count) break;
-    const conflicts = allExisting.some(r => areConflicting(r, candidate));
-    if (!conflicts) {
-      selected.push(candidate);
-      allExisting.push(candidate);
-    }
-  }
+  // 多轮洗牌尝试，找到足够多或最多的不冲突规则组合
+  const maxAttempts = bestSelected.length < count ? 5 : 1;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const shuffled = shuffle(pool);
+    const selected = [];
+    const current = [...allExisting];
 
-  // 如果不够，放宽数字参数冲突，但仍禁止同 exclusive 模板
-  if (selected.length < count) {
     for (const candidate of shuffled) {
       if (selected.length >= count) break;
-      if (selected.includes(candidate)) continue;
-      const ct = parseRuleId(candidate.id).template;
-      if (!exclusiveTemplates.includes(ct)) {
+      const conflicts = current.some(r => areConflicting(r, candidate));
+      if (!conflicts) {
         selected.push(candidate);
-        continue;
-      }
-      // 同模板检查：仅当已选规则中没有同模板的才加入
-      const sameExclusive = selected.some(r => {
-        return parseRuleId(r.id).template === ct;
-      });
-      if (!sameExclusive) {
-        selected.push(candidate);
+        current.push(candidate);
       }
     }
+
+    if (selected.length > bestSelected.length) {
+      bestSelected = selected;
+    }
+    if (bestSelected.length >= count) break;
   }
 
-  return selected;
+  return bestSelected;
 }
 
 /** 验证密码是否满足某条规则 */

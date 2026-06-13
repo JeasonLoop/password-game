@@ -2,7 +2,7 @@
 export const finalTemplates = [
   // 密码以两个特定字符开始
   {
-    id: 'final_starts_with_two',
+    id: 'final_starts_with',
     category: '字符串',
     difficulty: 1,
     description: '密码必须以 "{prefix}" 开头',
@@ -24,13 +24,13 @@ export const finalTemplates = [
 
   // 密码以两个特定字符结尾
   {
-    id: 'final_ends_with_two',
+    id: 'final_ends_with',
     category: '字符串',
     difficulty: 1,
     description: '密码必须以 "{suffix}" 结尾',
     params: { suffix: [
       'ed','er','es','et','al','an','ar','as','at',
-      'ce','ch','ck','de','ds','ee','el','en','es','et',
+      'ce','ch','ck','de','ds','ee','el','en',
       'gs','ic','ie','in','is','it','ke','ks','ld','le','ll','ly',
       'me','ms','nd','ne','ng','ns','nt','ny','od','of','ok','ol','on','or','os','ot','ow',
       'ps','rd','re','rs','rt','ry','se','sh','sk','ss','st',
